@@ -1,0 +1,19 @@
+# Dataset (download separately)
+archive/
+
+# Generated files
+data/*.npy
+data/*.npz
+models/*.keras
+models/*.h5
+models/*.pkl
+models/*.npz
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.ipynb_checkpoints/
+
+# Temp audio
+*.tmp

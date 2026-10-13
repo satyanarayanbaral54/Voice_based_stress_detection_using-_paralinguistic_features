@@ -1,0 +1,15 @@
+librosa
+numpy
+pandas
+scikit-learn
+tensorflow
+matplotlib
+seaborn
+soundfile
+sounddevice
+tqdm
+praat-parselmouth
+flask
+flask-cors
+werkzeug
+requests
