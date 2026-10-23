@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VoiceStress AI — Voice-Based Stress Detection from Paralinguistic Features</title>
+  <meta name="description" content="Voice-Based Stress Detection using deep learning on paralinguistic acoustic features with live demo mode and model comparison."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* ─── Design Tokens ─────────────────────────────────────────── */
+    :root {
+      --bg:         #0a0b10;
+      --surface:    #12141c;
+      --surface2:   #191c28;
+      --surface3:   #212536;
+      --border:     rgba(255,255,255,0.08);
+      --border-lit: rgba(139,92,246,0.3);
+      --text:       #f1f3f9;
+      --muted:      #7c849b;
+      --accent:     hsl(255,85%,65%);
+      --accent-dim: hsla(255,85%,65%,0.15);
+      --cyan:       hsl(190,90%,50%);
+      --cyan-dim:   hsla(190,90%,50%,0.15);
+      --low:        hsl(150,70%,45%);
+      --low-bg:     rgba(34,197,94,0.12);
+      --low-border: rgba(34,197,94,0.3);
+      --moderate:   hsl(40,95%,55%);
+      --mod-bg:     rgba(245,158,11,0.12);
+      --mod-border: rgba(245,158,11,0.3);
+      --high:       hsl(355,85%,60%);
+      --high-bg:    rgba(239,68,68,0.12);
+      --high-border:rgba(239,68,68,0.3);
+      --radius:     16px;
+      --glow:       0 0 50px rgba(124,58,237,0.12);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Ambient background */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 70% 50% at 15% 15%, hsl(260,75%,16%,0.45) 0%, transparent 65%),
+        radial-gradient(ellipse 60% 60% at 85% 85%, hsl(200,80%,13%,0.4) 0%, transparent 65%);
+      pointer-events: none;
+    }
+
+    .wrap { position: relative; z-index: 1; max-width: 1040px; margin: 0 auto; padding: 0 24px 80px; }
+
+    /* ─── Header ────────────────────────────────────────────────── */
+    header { text-align: center; padding: 50px 0 32px; }
+    .badge-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 16px; border-radius: 999px;
+      background: var(--accent-dim); border: 1px solid var(--border-lit);
+      font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 18px;
+    }
+    .badge-pill svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; }
+    h1 {
+      font-size: clamp(2.2rem, 5vw, 3.4rem);
+      font-weight: 800; letter-spacing: -0.03em; line-height: 1.15;
+      background: linear-gradient(135deg, #ffffff 40%, hsl(255,90%,78%) 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      margin-bottom: 12px;
+    }
+    .tagline {
+      color: var(--muted); font-size: 1.05rem; font-weight: 400; max-width: 620px;
+      margin: 0 auto 16px; line-height: 1.6;
+    }
+    .disclaimer-banner {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 16px; border-radius: 30px;
+      background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.22);
+      font-size: 12px; color: hsl(40,90%,70%);
+    }
+
+    /* ─── Navigation Tabs ───────────────────────────────────────── */
+    .tab-bar {
+      display: flex; justify-content: center; gap: 8px; margin: 28px 0 32px;
+      background: rgba(255,255,255,0.03); padding: 6px; border-radius: 999px;
+      border: 1px solid var(--border); width: fit-content; margin-left: auto; margin-right: auto;
+    }
+    .tab-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 22px; border-radius: 999px;
+      border: none; background: transparent; color: var(--muted);
+      font-size: 13.5px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .tab-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .tab-btn.active {
+      color: #fff; background: linear-gradient(135deg, hsl(255,80%,55%), hsl(220,80%,52%));
+      box-shadow: 0 4px 18px rgba(124,58,237,0.35);
+    }
+    .tab-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+    /* Tab content visibility */
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; animation: fadeIn 0.35s ease; }
+
+    /* ─── Card ──────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-bottom: 24px;
+      box-shadow: var(--glow);
+    }
+    .card-header-flex {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--muted); display: flex; align-items: center; gap: 8px;
+    }
+    .card-title svg { width: 16px; height: 16px; stroke: var(--accent); }
+
+    /* ─── Demo Section (Presentation Mode) ──────────────────────── */
+    .demo-hero-banner {
+      background: linear-gradient(135deg, rgba(124,58,237,0.15) 0%, rgba(6,182,212,0.1) 100%);
+      border: 1px solid rgba(139,92,246,0.25);
+      border-radius: 14px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    }
+    .demo-hero-text h3 { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .demo-hero-text p { font-size: 12.5px; color: var(--muted); }
+    .demo-hero-tag {
+      background: rgba(139,92,246,0.25); color: #c4b5fd; font-size: 11px; font-weight: 600;
+      padding: 4px 10px; border-radius: 6px; letter-spacing: 0.05em; text-transform: uppercase;
+    }
+
+    .demo-columns {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    }
+    @media (max-width: 768px) { .demo-columns { grid-template-columns: 1fr; } }
+
+    .demo-group-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+    }
+    .demo-group-title {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+    }
+    .demo-group-label {
+      font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px;
+    }
+    .demo-group-count {
+      font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 12px;
+    }
+    .calm-theme .demo-group-label { color: var(--low); }
+    .calm-theme .demo-group-count { background: var(--low-bg); color: var(--low); border: 1px solid var(--low-border); }
+    .stressed-theme .demo-group-label { color: var(--high); }
+    .stressed-theme .demo-group-count { background: var(--high-bg); color: var(--high); border: 1px solid var(--high-border); }
+
+    .demo-grid {
+      display: grid; grid-template-columns: 1fr; gap: 10px;
+    }
+    .demo-btn {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; border-radius: 10px;
+      background: var(--surface3); border: 1px solid var(--border);
+      color: var(--text); font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all 0.2s ease; text-align: left;
+    }
+    .demo-btn:hover {
+      border-color: var(--accent); background: rgba(139,92,246,0.12);
+      transform: translateY(-1px);
+    }
+    .demo-btn.active-clip {
+      border-color: var(--cyan); background: rgba(6,182,212,0.15);
+      box-shadow: 0 0 16px rgba(6,182,212,0.25);
+    }
+    .demo-btn-left { display: flex; align-items: center; gap: 10px; }
+    .demo-btn-play-icon {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s;
+    }
+    .demo-btn:hover .demo-btn-play-icon { background: var(--accent); }
+    .demo-btn.active-clip .demo-btn-play-icon { background: var(--cyan); }
+    .demo-btn-play-icon svg { width: 12px; height: 12px; fill: currentColor; }
+    .demo-btn-title { font-weight: 600; font-size: 13px; color: #fff; }
+    .demo-btn-actor { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    .tag-truth {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+      padding: 3px 8px; border-radius: 6px; text-transform: uppercase;
+    }
+    .tag-truth.calm { background: var(--low-bg); color: var(--low); border: 1px solid var(--low-border); }
+    .tag-truth.stressed { background: var(--high-bg); color: var(--high); border: 1px solid var(--high-border); }
+
+    /* ─── Upload zone ───────────────────────────────────────────── */
+    #drop-zone {
+      border: 2px dashed rgba(139,92,246,0.3);
+      border-radius: 12px; padding: 36px 20px;
+      text-align: center; cursor: pointer;
+      transition: all 0.2s ease;
+      background: rgba(139,92,246,0.03);
+    }
+    #drop-zone.drag-over { border-color: var(--accent); background: rgba(139,92,246,0.1); }
+    #drop-zone .upload-icon {
+      width: 48px; height: 48px; margin: 0 auto 12px;
+      background: var(--accent-dim); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #drop-zone .upload-icon svg { width: 22px; height: 22px; stroke: var(--accent); fill: none; stroke-width: 2; }
+    #drop-zone h3 { font-size: 0.95rem; font-weight: 600; color: #fff; margin-bottom: 4px; }
+    #drop-zone p  { font-size: 12px; color: var(--muted); }
+    #file-input { display: none; }
+    #selected-file { margin-top: 10px; font-size: 13px; color: var(--accent); font-weight: 500; }
+
+    /* Audio preview */
+    .audio-player-wrap {
+      margin-top: 16px; padding: 14px 18px; border-radius: 12px;
+      background: var(--surface2); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    }
+    .player-left { display: flex; align-items: center; gap: 10px; }
+    .player-left svg { width: 20px; height: 20px; stroke: var(--cyan); }
+    .player-filename { font-size: 13px; font-weight: 600; color: #fff; }
+    #audio-preview { accent-color: var(--accent); height: 34px; border-radius: 8px; }
+
+    /* ─── Analyse button ────────────────────────────────────────── */
+    #analyse-btn {
+      width: 100%; padding: 14px;
+      background: linear-gradient(135deg, hsl(255,85%,60%) 0%, hsl(210,85%,55%) 100%);
+      color: #fff; font-size: 0.95rem; font-weight: 700;
+      border: none; border-radius: 12px; cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 20px rgba(124,58,237,0.3);
+    }
+    #analyse-btn:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); }
+    #analyse-btn:active:not(:disabled) { transform: scale(0.99); }
+    #analyse-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ─── Loading & Error ───────────────────────────────────────── */
+    #loading { display: none; text-align: center; padding: 36px; }
+    .spinner {
+      width: 42px; height: 42px; margin: 0 auto 14px;
+      border: 3px solid rgba(255,255,255,0.08);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #error-box {
+      display: none;
+      background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 10px; padding: 14px 18px;
+      color: hsl(355,85%,75%); font-size: 13.5px; margin-top: 14px;
+    }
+
+    /* ─── Results Section ───────────────────────────────────────── */
+    #results { display: none; }
+
+    /* Ground Truth Audit Banner */
+    .truth-audit-banner {
+      border-radius: 14px; padding: 18px 24px; margin-bottom: 20px;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+      transition: all 0.3s ease;
+    }
+    .truth-audit-banner.match {
+      background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.35);
+    }
+    .truth-audit-banner.mismatch {
+      background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.35);
+    }
+    .truth-audit-banner.unknown {
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    }
+    .truth-col { display: flex; flex-direction: column; gap: 4px; }
+    .truth-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+    .truth-val { font-size: 1.15rem; font-weight: 800; display: flex; align-items: center; gap: 6px; }
+    .truth-status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 18px; border-radius: 30px; font-size: 13px; font-weight: 800; letter-spacing: 0.04em;
+    }
+    .match .truth-status-pill { background: var(--low); color: #042f14; }
+    .mismatch .truth-status-pill { background: var(--high); color: #fff; }
+    .unknown .truth-status-pill { background: rgba(255,255,255,0.1); color: var(--muted); }
+
+    /* Score gauge */
+    .gauge-wrap { text-align: center; padding: 10px 0 16px; }
+    .gauge-score {
+      font-size: clamp(3.2rem, 7vw, 4.8rem);
+      font-weight: 800; letter-spacing: -0.04em; line-height: 1;
+      background: linear-gradient(135deg, #ffffff 30%, hsl(255,90%,75%) 85%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .gauge-label {
+      display: inline-block; margin-top: 10px;
+      padding: 6px 20px; border-radius: 30px;
+      font-size: 13.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .gauge-label.Low      { background: var(--low-bg);  color: var(--low);      border: 1px solid var(--low-border); }
+    .gauge-label.Moderate { background: var(--mod-bg);  color: var(--moderate); border: 1px solid var(--mod-border); }
+    .gauge-label.High     { background: var(--high-bg); color: var(--high);     border: 1px solid var(--high-border); }
+
+    .stress-bar-wrap { margin: 18px 0; }
+    .stress-bar-track {
+      height: 10px; border-radius: 8px;
+      background: linear-gradient(90deg, var(--low) 0%, var(--moderate) 50%, var(--high) 100%);
+      position: relative; overflow: visible;
+    }
+    .stress-bar-thumb {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #fff; box-shadow: 0 0 0 3px var(--accent), 0 0 16px rgba(139,92,246,0.7);
+      position: absolute; top: 50%; transform: translate(-50%, -50%);
+      transition: left 0.8s cubic-bezier(0.23,1,0.32,1);
+    }
+
+    /* Per-model cards */
+    .model-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 10px; }
+    @media (max-width: 640px) { .model-grid { grid-template-columns: 1fr; } }
+    .model-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px; position: relative; overflow: hidden;
+    }
+    .model-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+    .model-card h4 { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+    .model-pill {
+      font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 4px; text-transform: uppercase;
+    }
+    .model-pill.calm { background: var(--low-bg); color: var(--low); border: 1px solid var(--low-border); }
+    .model-pill.stressed { background: var(--high-bg); color: var(--high); border: 1px solid var(--high-border); }
+    .model-score { font-size: 1.8rem; font-weight: 800; }
+    .model-bar-track { height: 5px; background: rgba(255,255,255,0.08); border-radius: 4px; margin-top: 10px; }
+    .model-bar-fill  { height: 100%; border-radius: 4px; background: var(--accent); transition: width 0.8s ease; }
+
+    /* Charts */
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 8px; }
+    @media (max-width: 720px) { .charts-grid { grid-template-columns: 1fr; } }
+    .chart-wrap { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+    .chart-wrap h4 { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px; }
+
+    /* ─── Model Comparison Tab Styles ───────────────────────────── */
+    .stats-overview {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px;
+    }
+    @media (max-width: 820px) { .stats-overview { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 480px) { .stats-overview { grid-template-columns: 1fr; } }
+
+    .stat-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 18px; position: relative;
+    }
+    .stat-card.highlight {
+      border-color: rgba(139,92,246,0.4);
+      background: linear-gradient(135deg, rgba(139,92,246,0.1) 0%, var(--surface2) 100%);
+    }
+    .stat-card-label { font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-card-val { font-size: 1.9rem; font-weight: 800; color: #fff; margin: 6px 0 2px; }
+    .stat-card-sub { font-size: 11px; color: var(--low); font-weight: 600; }
+
+    /* Table */
+    .table-container {
+      overflow-x: auto; margin-top: 10px; border-radius: 10px; border: 1px solid var(--border);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; text-align: left; }
+    th {
+      background: var(--surface3); color: var(--text); padding: 14px 16px;
+      font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border);
+    }
+    td { padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .metric-badge {
+      font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 13px;
+      padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.06);
+    }
+    .metric-badge.best {
+      background: var(--low-bg); color: var(--low); border: 1px solid var(--low-border);
+    }
+
+    /* Confusion matrices embed */
+    .cm-image-wrap {
+      text-align: center; background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 20px; margin-top: 12px;
+    }
+    .cm-image-wrap img {
+      max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    }
+    .cm-caption {
+      margin-top: 12px; font-size: 12.5px; color: var(--muted); line-height: 1.5;
+    }
+
+    /* Architecture feature pills */
+    .feature-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .feature-pill {
+      font-size: 11.5px; padding: 4px 10px; border-radius: 6px;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: #d1d5db;
+    }
+
+    /* ─── Footer ────────────────────────────────────────────────── */
+    footer { text-align: center; color: var(--muted); font-size: 12px; padding-top: 50px; line-height: 1.8; }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    .fade-in { animation: fadeIn 0.4s ease both; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <header>
+    <div class="badge-pill">
+      <svg viewBox="0 0 24 24"><path d="M12 1v22M7 5v14M17 5v14M2 9v6M22 9v6"/></svg>
+      Deep Learning Semester Project · RAVDESS Audio
+    </div>
+    <h1>Voice-Based Stress Detection</h1>
+    <p class="tagline">Real-time classification of speech into Calm vs Stressed using 3 Deep Learning architectures trained strictly on acoustic paralinguistics.</p>
+    <div class="disclaimer-banner">
+      <span>🛡️ Zero Acoustic Leakage: Actor-based split (Train 1–16, Val 17–20, Unseen Test 21–24). Models never analyze words or transcripts.</span>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="tab-bar" aria-label="Application navigation">
+    <button class="tab-btn active" id="tab-btn-detector" onclick="switchTab('detector')">
+      <svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      Live Stress Detector &amp; Demo
+    </button>
+    <button class="tab-btn" id="tab-btn-comparison" onclick="switchTab('comparison')">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Model Comparison &amp; Test Results
+    </button>
+  </nav>
+
+  <!-- ========================================================================= -->
+  <!-- TAB 1: DETECTOR & DEMO PRESENTATION                                       -->
+  <!-- ========================================================================= -->
+  <div class="tab-pane active" id="pane-detector">
+
+    <!-- Demo Mode Card -->
+    <section class="card" aria-labelledby="demo-heading">
+      <div class="card-header-flex">
+        <h2 id="demo-heading" class="card-title">
+          <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Presentation Demo Mode — 8 Verified Holdout Clips
+        </h2>
+        <span class="demo-hero-tag">Holdout Actors 21–24</span>
+      </div>
+
+      <div class="demo-hero-banner">
+        <div class="demo-hero-text">
+          <h3>Presenting without a microphone? Click any test sample below!</h3>
+          <p>Each clip is loaded from holdout test actors (21–24), played through audio speakers, and passed through all 3 neural networks.</p>
+        </div>
+      </div>
+
+      <div class="demo-columns">
+        <!-- Calm Group -->
+        <div class="demo-group-box calm-theme">
+          <div class="demo-group-title">
+            <span class="demo-group-label">
+              <span style="width:10px;height:10px;border-radius:50%;background:var(--low)"></span>
+              Calm Speech Clips (Ground Truth: Calm)
+            </span>
+            <span class="demo-group-count">4 Clips</span>
+          </div>
+          <div class="demo-grid" id="demo-calm-grid">
+            <button class="demo-btn" onclick="playAndAnalyze('calm_1.wav', 'Calm', 'Calm #1 (Actor 21, Male)')">
+              <div class="demo-btn-left">
+                <div class="demo-btn-play-icon"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg></div>
+                <div>
+                  <div class="demo-btn-title">Calm #1 — Neutral tone</div>
+                  <div class="demo-btn-actor">Actor 21 (Male) · Statement 1</div>
+                </div>
+              </div>
+              <span class="tag-truth calm">True: Calm</span>
+            </button>
+
+            <button class="demo-btn" onclick="playAndAnalyze('calm_2.wav', 'Calm', 'Calm #2 (Actor 22, Female)')">
+              <div class="demo-btn-left">
+                <div class="demo-btn-play-icon"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg></div>
+                <div>
+                  <div class="demo-btn-title">Calm #2 — Soft expression</div>
+                  <div class="demo-btn-actor">Actor 22 (Female) · Statement 1</div>
+                </div>
+              </div>
+              <span class="tag-truth calm">True: Calm</span>
+            </button>
+
+            <button class="demo-btn" onclick="playAndAnalyze('calm_3.wav', 'Calm', 'Calm #3 (Actor 23, Male)')">
+              <div class="demo-btn-left">
+                <div class="demo-btn-play-icon"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg></div>
+                <div>
+                  <div class="demo-btn-title">Calm #3 — Relaxed cadence</div>
+                  <div class="demo-btn-actor">Actor 23 (Male) · Statement 2</div>
+                </div>
+              </div>
+              <span class="tag-truth calm">True: Calm</span>
+            </button>
+
+            <button class="demo-btn" onclick="playAndAnalyze('calm_4.wav', 'Calm', 'Calm #4 (Actor 24, Female)')">
+              <div class="demo-btn-left">
+                <div class="demo-btn-play-icon"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg></div>
+                <div>
+                  <div class="demo-btn-title">Calm #4 — Steady pitch</div>
+                  <div class="demo-btn-actor">Actor 24 (Female) · Statement 2</div>
+                </div>
+              </div>
+              <span class="tag-truth calm">True: Calm</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Stressed Group -->
+        <div class="demo-group-box stressed-theme">
+          <div class="demo-group-title">
+            <span class="demo-group-label">
+              <span style="width:10px;height:10px;border-radius:50%;background:var(--high)"></span>
+              Stressed Speech Clips (Ground Truth: Stressed)
+            </span>
+            <span class="demo-group-count">4 Clips</span>
+          </div>
+          <div class="demo-grid" id="demo-stressed-grid">
+            <button class="demo-btn" onclick="playAndAnalyze('stressed_1.wav', 'Stressed', 'Stressed #1 (Actor 21, Male)')">
+              <div class="demo-btn-left">
+                <div class="demo-btn-play-icon"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg></div>
+                <div>
+                  <div class="demo-btn-title">Stressed #1 — Angry / Intense</div>
+                  <div class="demo-btn-actor">Actor 21 (Male) · High vocal tension</div>
+                </div>
+              </div>
+              <span class="tag-truth stressed">True: Stressed</span>
+            </button>
+
+            <button class="demo-btn" onclick="playAndAnalyze('stressed_2.wav', 'Stressed', 'Stressed #2 (Actor 22, Female)')">
+              <div class="demo-btn-left">
+                <div class="demo-btn-play-icon"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg></div>
+                <div>
+                  <div class="demo-btn-title">Stressed #2 — Fearful tremor</div>
+                  <div class="demo-btn-actor">Actor 22 (Female) · Shimmer fluctuation</div>
+                </div>
+              </div>
+              <span class="tag-truth stressed">True: Stressed</span>
+            </button>
+
+            <button class="demo-btn" onclick="playAndAnalyze('stressed_3.wav', 'Stressed', 'Stressed #3 (Actor 23, Male)')">
+              <div class="demo-btn-left">
+                <div class="demo-btn-play-icon"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg></div>
+                <div>
+                  <div class="demo-btn-title">Stressed #3 — Elevated pitch F0</div>
+                  <div class="demo-btn-actor">Actor 23 (Male) · High RMS energy</div>
+                </div>
+              </div>
+              <span class="tag-truth stressed">True: Stressed</span>
+            </button>
+
+            <button class="demo-btn" onclick="playAndAnalyze('stressed_4.wav', 'Stressed', 'Stressed #4 (Actor 24, Female)')">
+              <div class="demo-btn-left">
+                <div class="demo-btn-play-icon"><svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></svg></div>
+                <div>
+                  <div class="demo-btn-title">Stressed #4 — Sharp perturbation</div>
+                  <div class="demo-btn-actor">Actor 24 (Female) · Jitter + energy peak</div>
+                </div>
+              </div>
+              <span class="tag-truth stressed">True: Stressed</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Custom Upload Card -->
+    <section class="card">
+      <div class="card-header-flex">
+        <h2 class="card-title">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Or Upload Any WAV File
+        </h2>
+        <span style="font-size:12px;color:var(--muted)">WAV Format · Min 1.0 sec</span>
+      </div>
+
+      <div id="drop-zone" role="button" tabindex="0" aria-label="Upload custom WAV file">
+        <div class="upload-icon">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <h3>Drop your WAV recording here, or click to browse</h3>
+        <p>16kHz or 22.05kHz · Mono or stereo</p>
+        <div id="selected-file"></div>
+      </div>
+      <input type="file" id="file-input" accept=".wav,audio/wav" aria-hidden="true"/>
+
+      <!-- Audio Player Preview -->
+      <div class="audio-player-wrap" id="audio-player-wrap" style="display:none">
+        <div class="player-left">
+          <svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+          <div>
+            <div class="player-filename" id="player-filename">clip.wav</div>
+            <div style="font-size:11px;color:var(--muted)" id="player-sub">Audio playback preview</div>
+          </div>
+        </div>
+        <audio id="audio-preview" controls></audio>
+      </div>
+
+      <div id="error-box" role="alert"></div>
+
+      <button id="analyse-btn" disabled style="margin-top:18px">Analyse Voice Stress Level</button>
+    </section>
+
+    <!-- Loading State -->
+    <div id="loading" class="card">
+      <div class="spinner"></div>
+      <p style="color:#fff;font-size:14px;font-weight:600">Extracting paralinguistics &amp; executing neural inference...</p>
+      <p style="color:var(--muted);font-size:12px;margin-top:4px">Computing 32 tabular features + 130-frame temporal MFCC sequence</p>
+    </div>
+
+    <!-- Analysis Results -->
+    <div id="results">
+
+      <!-- Ground Truth Validation Banner -->
+      <div class="truth-audit-banner unknown" id="truth-audit-banner">
+        <div class="truth-col">
+          <span class="truth-label">Audience Ground Truth Check</span>
+          <div class="truth-val" id="truth-banner-title">
+            Comparing Prediction vs Actual Label
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+          <div class="truth-col">
+            <span class="truth-label">Actual Label</span>
+            <strong style="font-size:15px;color:#fff" id="truth-actual-label">—</strong>
+          </div>
+          <div class="truth-col">
+            <span class="truth-label">Model Predicted</span>
+            <strong style="font-size:15px;color:#fff" id="truth-predicted-label">—</strong>
+          </div>
+          <div id="truth-status-badge" class="truth-status-pill">
+            Evaluating...
+          </div>
+        </div>
+      </div>
+
+      <!-- Stress Gauge Score Card -->
+      <section class="card fade-in">
+        <div class="card-header-flex">
+          <p class="card-title">Ensemble Vocal Stress Estimation</p>
+          <span style="font-size:12px;color:var(--muted)">Duration: <strong id="meta-duration" style="color:#fff">—</strong></span>
+        </div>
+
+        <div class="gauge-wrap">
+          <div class="gauge-score" id="score-display">—</div>
+          <br/>
+          <span class="gauge-label" id="level-badge">—</span>
+        </div>
+
+        <div class="stress-bar-wrap">
+          <div class="stress-bar-track" id="stress-bar">
+            <div class="stress-bar-thumb" id="stress-thumb" style="left:0%"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:8px">
+            <span>0% Calm (Low Stress)</span>
+            <span>35% Moderate</span>
+            <span>65% High Stress</span>
+            <span>100% Extreme</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Per-Model Breakdown -->
+      <section class="card fade-in">
+        <p class="card-title">Individual Model Decisions</p>
+        <div class="model-grid">
+          <div class="model-card" id="card-baseline">
+            <div class="model-card-header">
+              <h4>Baseline (Dense)</h4>
+              <span class="model-pill" id="pill-baseline">—</span>
+            </div>
+            <div class="model-score" id="score-baseline">—</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">32 Aggregated Features</div>
+            <div class="model-bar-track"><div class="model-bar-fill" id="bar-baseline" style="width:0%"></div></div>
+          </div>
+
+          <div class="model-card" id="card-lstm">
+            <div class="model-card-header">
+              <h4>LSTM (Temporal)</h4>
+              <span class="model-pill" id="pill-lstm">—</span>
+            </div>
+            <div class="model-score" id="score-lstm">—</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">130 MFCC Time Frames</div>
+            <div class="model-bar-track"><div class="model-bar-fill" id="bar-lstm" style="width:0%"></div></div>
+          </div>
+
+          <div class="model-card" id="card-cnn">
+            <div class="model-card-header">
+              <h4>CNN (Spectrogram)</h4>
+              <span class="model-pill" id="pill-cnn">—</span>
+            </div>
+            <div class="model-score" id="score-cnn">—</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">2D Time-Frequency Conv</div>
+            <div class="model-bar-track"><div class="model-bar-fill" id="bar-cnn" style="width:0%"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Acoustic Contours -->
+      <section class="card fade-in">
+        <p class="card-title">Paralinguistic Acoustic Contours</p>
+        <div class="charts-grid">
+          <div class="chart-wrap">
+            <h4>Fundamental Frequency Pitch F0 (Hz)</h4>
+            <canvas id="pitch-chart" height="150"></canvas>
+          </div>
+          <div class="chart-wrap">
+            <h4>RMS Energy Contour</h4>
+            <canvas id="energy-chart" height="150"></canvas>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /results -->
+
+  </div><!-- /pane-detector -->
+
+
+  <!-- ========================================================================= -->
+  <!-- TAB 2: MODEL COMPARISON & TEST RESULTS                                    -->
+  <!-- ========================================================================= -->
+  <div class="tab-pane" id="pane-comparison">
+
+    <!-- Stats summary row -->
+    <div class="stats-overview">
+      <div class="stat-card highlight">
+        <div class="stat-card-label">Baseline (Dense) Acc</div>
+        <div class="stat-card-val">95.54%</div>
+        <div class="stat-card-sub">Top Test Holdout · F1: 0.9553</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">LSTM (Temporal) Acc</div>
+        <div class="stat-card-val">92.86%</div>
+        <div class="stat-card-sub" style="color:var(--cyan)">F1: 0.9287 · Sequential</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">CNN (MaxPooling) Acc</div>
+        <div class="stat-card-val">92.86%</div>
+        <div class="stat-card-sub" style="color:var(--cyan)">F1: 0.9288 · Spectrogram</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-label">Holdout Test Set</div>
+        <div class="stat-card-val">N=112</div>
+        <div class="stat-card-sub" style="color:var(--muted)">Actors 21–24 (Zero Leakage)</div>
+      </div>
+    </div>
+
+    <!-- Comparative Table Card -->
+    <section class="card">
+      <div class="card-header-flex">
+        <h2 class="card-title">
+          <svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+          Test Set Performance Comparison (Actors 21–24)
+        </h2>
+        <span class="demo-hero-tag">Weighted Metrics</span>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Model Architecture</th>
+              <th>Feature Representation</th>
+              <th>Accuracy</th>
+              <th>Precision</th>
+              <th>Recall</th>
+              <th>F1-Score</th>
+              <th>Model Characteristics</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <strong style="color:#fff">Baseline Dense Network</strong><br/>
+                <span style="font-size:11px;color:var(--muted)">Dense 128 &rarr; Dense 64 &rarr; Sigmoid</span>
+              </td>
+              <td>32 Aggregated Paralinguistic Features<br/><span style="font-size:11px;color:var(--muted)">(MFCC 1–13 mean/std, F0, RMS, Jitter, Shimmer)</span></td>
+              <td><span class="metric-badge best">95.54%</span></td>
+              <td><span class="metric-badge best">0.9554</span></td>
+              <td><span class="metric-badge best">0.9554</span></td>
+              <td><span class="metric-badge best">0.9553</span></td>
+              <td>Highest accuracy; excels when global perturbation features (jitter &amp; shimmer) are combined with MFCCs.</td>
+            </tr>
+            <tr>
+              <td>
+                <strong style="color:#fff">LSTM Temporal Network</strong><br/>
+                <span style="font-size:11px;color:var(--muted)">Bidirectional/LSTM 64 &rarr; Dense 32 &rarr; Sigmoid</span>
+              </td>
+              <td>130 Time Frames &times; 13 MFCCs<br/><span style="font-size:11px;color:var(--muted)">(Normalized temporal sequence)</span></td>
+              <td><span class="metric-badge">92.86%</span></td>
+              <td><span class="metric-badge">0.9295</span></td>
+              <td><span class="metric-badge">0.9286</span></td>
+              <td><span class="metric-badge">0.9287</span></td>
+              <td>Learns temporal prosody patterns, speech rhythm, and continuous intonation variations.</td>
+            </tr>
+            <tr>
+              <td>
+                <strong style="color:#fff">CNN Spectrogram Network</strong><br/>
+                <span style="font-size:11px;color:var(--muted)">Conv2D (32, 64) &rarr; MaxPool &rarr; Dense 64</span>
+              </td>
+              <td>(130 &times; 13 &times; 1) MFCC 'Image'<br/><span style="font-size:11px;color:var(--muted)">(2D Acoustic Representation)</span></td>
+              <td><span class="metric-badge">92.86%</span></td>
+              <td><span class="metric-badge">0.9315</span></td>
+              <td><span class="metric-badge">0.9286</span></td>
+              <td><span class="metric-badge">0.9288</span></td>
+              <td>Captures localized time-frequency acoustic formant shifts and rapid frequency transitions.</td>
+            </tr>
+            <tr style="background:rgba(124,58,237,0.06)">
+              <td>
+                <strong style="color:var(--accent)">Production Ensemble</strong><br/>
+                <span style="font-size:11px;color:var(--muted)">0.2 Dense + 0.4 LSTM + 0.4 CNN</span>
+              </td>
+              <td>Multimodal Acoustic Fusion<br/><span style="font-size:11px;color:var(--muted)">(Tabular + Sequence + Spatial)</span></td>
+              <td><span class="metric-badge best">95.54%</span></td>
+              <td><span class="metric-badge best">0.9554</span></td>
+              <td><span class="metric-badge best">0.9554</span></td>
+              <td><span class="metric-badge best">0.9553</span></td>
+              <td>Combines the stability of global statistical aggregations with dynamic sequence modeling for robust deployment.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Confusion Matrix Visualizations -->
+    <section class="card">
+      <div class="card-header-flex">
+        <h2 class="card-title">
+          <svg viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/><path d="M12 3v18"/></svg>
+          Holdout Test Confusion Matrices (data/test_confusion_matrices.png)
+        </h2>
+        <span style="font-size:12px;color:var(--muted)">Actors 21–24 · 48 Calm vs 64 Stressed</span>
+      </div>
+
+      <div class="cm-image-wrap">
+        <img src="/data/test_confusion_matrices.png" alt="Test Confusion Matrices for Baseline, LSTM, and CNN" loading="lazy" />
+        <p class="cm-caption">
+          <strong>Evaluation Breakdown:</strong> Across all 112 unseen samples, the Baseline Dense network achieved <strong>45/48 correct Calm</strong> and <strong>62/64 correct Stressed</strong> (only 5 total errors). The LSTM achieved 45 Calm and 59 Stressed, while the CNN achieved 46 Calm and 58 Stressed.
+        </p>
+      </div>
+    </section>
+
+    <!-- Paralinguistic Feature Extraction Details -->
+    <section class="card">
+      <h2 class="card-title">
+        <svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+        Paralinguistic Acoustic Feature Pipeline
+      </h2>
+      <p style="font-size:13.5px;color:var(--muted);line-height:1.6;margin-top:8px">
+        Unlike transcription-based systems, our models adhere strictly to <strong>paralinguistic acoustic properties</strong>. The semantic spoken words are completely discarded to prevent linguistic or lexical bias:
+      </p>
+
+      <div class="feature-list">
+        <span class="feature-pill"><strong>MFCCs (1–13):</strong> Vocal tract spectral envelope &amp; timbre</span>
+        <span class="feature-pill"><strong>Pitch F0 (YIN):</strong> Vocal fold vibration frequency &amp; intonation tension</span>
+        <span class="feature-pill"><strong>RMS Energy:</strong> Vocal loudness dynamics and intensity</span>
+        <span class="feature-pill"><strong>Jitter (local):</strong> Cycle-to-cycle pitch frequency perturbation</span>
+        <span class="feature-pill"><strong>Shimmer (local):</strong> Cycle-to-cycle vocal amplitude perturbation</span>
+      </div>
+    </section>
+
+  </div><!-- /pane-comparison -->
+
+  <!-- Footer -->
+  <footer>
+    <p>Voice-Based Stress Detection from Paralinguistic Features · Deep Learning Semester Project</p>
+    <p style="margin-top:6px">Audio data from the <a href="https://zenodo.org/record/1188976" target="_blank" rel="noopener">RAVDESS</a> emotional speech corpus · CLI demo available via <code>python demo.py path/to/file.wav</code></p>
+  </footer>
+
+</div><!-- /wrap -->
+
+<script>
+// ── Global State ─────────────────────────────────────────────────────────────
+let selectedFile = null;
+let currentTrueLabel = null;
+let pitchChart = null;
+let energyChart = null;
+
+// ── DOM References ───────────────────────────────────────────────────────────
+const dropZone          = document.getElementById('drop-zone');
+const fileInput         = document.getElementById('file-input');
+const selectedFileLbl   = document.getElementById('selected-file');
+const analyseBtn        = document.getElementById('analyse-btn');
+const loadingEl         = document.getElementById('loading');
+const resultsEl         = document.getElementById('results');
+const errorBox          = document.getElementById('error-box');
+const audioPlayerWrap   = document.getElementById('audio-player-wrap');
+const audioPreview      = document.getElementById('audio-preview');
+const playerFilename    = document.getElementById('player-filename');
+const playerSub         = document.getElementById('player-sub');
+
+// ── Navigation Tabs ──────────────────────────────────────────────────────────
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+
+  if (tabId === 'detector') {
+    document.getElementById('tab-btn-detector').classList.add('active');
+    document.getElementById('pane-detector').classList.add('active');
+  } else {
+    document.getElementById('tab-btn-comparison').classList.add('active');
+    document.getElementById('pane-comparison').classList.add('active');
+  }
+}
+
+// ── Drag & Drop File Handling ────────────────────────────────────────────────
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) setCustomFile(f);
+});
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) setCustomFile(fileInput.files[0]); });
+
+function setCustomFile(f) {
+  if (!f.name.toLowerCase().endsWith('.wav')) {
+    showError('Please upload a standard WAV file (.wav format).');
+    return;
+  }
+  selectedFile = f;
+  currentTrueLabel = null;
+  selectedFileLbl.textContent = '📎 ' + f.name + ' (' + (f.size / 1024).toFixed(1) + ' KB)';
+  analyseBtn.disabled = false;
+  hideError();
+
+  // Remove active highlight from demo buttons
+  document.querySelectorAll('.demo-btn').forEach(b => b.classList.remove('active-clip'));
+
+  // Setup preview
+  const url = URL.createObjectURL(f);
+  audioPreview.src = url;
+  playerFilename.textContent = f.name;
+  playerSub.textContent = 'Custom upload ready for stress detection';
+  audioPlayerWrap.style.display = 'flex';
+  hideResults();
+}
+
+// ── Presentation Demo Mode: Play & Analyze ───────────────────────────────────
+async function playAndAnalyze(sampleName, trueLabel, displayName) {
+  // Highlight active button
+  document.querySelectorAll('.demo-btn').forEach(b => b.classList.remove('active-clip'));
+  event.currentTarget.classList.add('active-clip');
+
+  currentTrueLabel = trueLabel;
+  hideError();
+  hideResults();
+  showLoading();
+
+  try {
+    const audioUrl = '/samples/' + sampleName;
+
+    // 1. Play audio immediately for the audience
+    audioPreview.src = audioUrl;
+    playerFilename.textContent = displayName || sampleName;
+    playerSub.textContent = 'Demo holdout sample · Ground Truth: ' + trueLabel;
+    audioPlayerWrap.style.display = 'flex';
+    audioPreview.play().catch(() => {/* Autoplay may be blocked until user gesture */});
+
+    // 2. Fetch the WAV blob and package as FormData
+    const audioRes = await fetch(audioUrl);
+    if (!audioRes.ok) throw new Error('Could not load sample audio clip: ' + sampleName);
+    const audioBlob = await audioRes.blob();
+    const file = new File([audioBlob], sampleName, { type: 'audio/wav' });
+    selectedFile = file;
+
+    // 3. Post to /predict with explicit true_label
+    const fd = new FormData();
+    fd.append('audio', file);
+    fd.append('true_label', trueLabel);
+
+    const res = await fetch('/predict', { method: 'POST', body: fd });
+    const data = await res.json();
+    hideLoading();
+
+    if (!res.ok || data.error) {
+      showError(data.error || 'Server error during inference.');
+      return;
+    }
+
+    renderResults(data);
+  } catch (err) {
+    hideLoading();
+    showError('Demo error: ' + err.message);
+  }
+}
+
+// ── Analyze Button Click ─────────────────────────────────────────────────────
+analyseBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  showLoading();
+  hideError();
+  hideResults();
+
+  const fd = new FormData();
+  fd.append('audio', selectedFile);
+  if (currentTrueLabel) {
+    fd.append('true_label', currentTrueLabel);
+  }
+
+  try {
+    const res = await fetch('/predict', { method: 'POST', body: fd });
+    const data = await res.json();
+    hideLoading();
+
+    if (!res.ok || data.error) {
+      showError(data.error || 'Unknown error occurred.');
+      return;
+    }
+    renderResults(data);
+  } catch (err) {
+    hideLoading();
+    showError('Network error: ' + err.message);
+  }
+});
+
+// ── Render Inference Results ─────────────────────────────────────────────────
+function renderResults(d) {
+  const score = d.stress_score;
+  const level = d.level;
+  const predClass = d.predicted_class || (score >= 50 ? 'Stressed' : 'Calm');
+  const trueLabel = d.true_label;
+
+  // 1. Audit banner: Ground Truth vs Prediction
+  const banner = document.getElementById('truth-audit-banner');
+  const actualLbl = document.getElementById('truth-actual-label');
+  const predLbl   = document.getElementById('truth-predicted-label');
+  const badge     = document.getElementById('truth-status-badge');
+  const bannerTitle = document.getElementById('truth-banner-title');
+
+  if (trueLabel && trueLabel !== 'Unknown') {
+    actualLbl.textContent = trueLabel;
+    predLbl.textContent = predClass + ' (' + score.toFixed(1) + '%)';
+    const isMatch = predClass.toLowerCase() === trueLabel.toLowerCase();
+
+    if (isMatch) {
+      banner.className = 'truth-audit-banner match';
+      bannerTitle.innerHTML = 'Model Correctly Identified Ground Truth';
+      badge.textContent = 'MATCH ✓ CORRECT';
+    } else {
+      banner.className = 'truth-audit-banner mismatch';
+      bannerTitle.innerHTML = 'Model Disagrees with Ground Truth';
+      badge.textContent = 'MISMATCH ✗';
+    }
+  } else {
+    actualLbl.textContent = 'Unknown (Custom Upload)';
+    predLbl.textContent = predClass + ' (' + score.toFixed(1) + '%)';
+    banner.className = 'truth-audit-banner unknown';
+    bannerTitle.innerHTML = 'Predicted as ' + predClass + ' (' + level + ' Stress)';
+    badge.textContent = 'INFERENCE COMPLETED';
+  }
+
+  // 2. Score & Level Gauge
+  document.getElementById('score-display').textContent = score.toFixed(1);
+  const lvlBadge = document.getElementById('level-badge');
+  lvlBadge.textContent = level + ' Stress (' + predClass + ')';
+  lvlBadge.className = 'gauge-label ' + level;
+
+  setTimeout(() => {
+    document.getElementById('stress-thumb').style.left = score + '%';
+  }, 50);
+
+  document.getElementById('meta-duration').textContent = d.duration_sec + 's';
+
+  // 3. Per-Model Cards
+  setModel('baseline', d.per_model.baseline, d.per_model_class ? d.per_model_class.baseline : null);
+  setModel('lstm',     d.per_model.lstm,     d.per_model_class ? d.per_model_class.lstm : null);
+  setModel('cnn',      d.per_model.cnn,      d.per_model_class ? d.per_model_class.cnn : null);
+
+  // 4. Acoustic Contours (Pitch and RMS Energy)
+  renderLineChart('pitch-chart', d.pitch_contour, 'Pitch F0 (Hz)', '#8b5cf6');
+  renderLineChart('energy-chart', d.energy_contour, 'RMS Energy', '#06b6d4');
+
+  resultsEl.style.display = 'block';
+  resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function setModel(id, score, cls) {
+  document.getElementById('score-' + id).textContent = score.toFixed(1) + '%';
+  const pill = document.getElementById('pill-' + id);
+  const pClass = cls || (score >= 50 ? 'Stressed' : 'Calm');
+  pill.textContent = pClass;
+  pill.className = 'model-pill ' + pClass.toLowerCase();
+
+  setTimeout(() => {
+    document.getElementById('bar-' + id).style.width = score + '%';
+  }, 50);
+}
+
+// ── Chart.js Helper ──────────────────────────────────────────────────────────
+function renderLineChart(canvasId, data, label, color) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  const existing = canvasId === 'pitch-chart' ? pitchChart : energyChart;
+  if (existing) existing.destroy();
+
+  const labels = data.map((_, i) => i);
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label,
+        data,
+        borderColor: color,
+        backgroundColor: color + '15',
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: true,
+        tension: 0.25,
+      }]
+    },
+    options: {
+      responsive: true,
+      animation: { duration: 600 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#191c28',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          titleColor: '#fff',
+          bodyColor: '#9ca3af',
+          callbacks: {
+            title: items => 'Frame ' + items[0].label,
+            label: item => label + ': ' + Number(item.parsed.y).toFixed(2),
+          }
+        }
+      },
+      scales: {
+        x: { display: false },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#7c849b', font: { size: 10 } }
+        }
+      }
+    }
+  });
+
+  if (canvasId === 'pitch-chart') pitchChart = chart;
+  else energyChart = chart;
+}
+
+// ── UI Visibility Helpers ────────────────────────────────────────────────────
+function showLoading()  { loadingEl.style.display = 'block'; }
+function hideLoading()  { loadingEl.style.display = 'none'; }
+function hideResults()  { resultsEl.style.display = 'none'; }
+function showError(msg) { errorBox.style.display = 'block'; errorBox.textContent = '⚠ ' + msg; }
+function hideError()    { errorBox.style.display = 'none'; }
+</script>
+</body>
+</html>
